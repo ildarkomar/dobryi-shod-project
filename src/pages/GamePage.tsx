@@ -21,7 +21,11 @@ const GamePage = () => {
     avatarUrl: "https://source.unsplash.com/random/100x100/?man,sad" 
   });
   const [chatOpen, setChatOpen] = useState(false);
+  const [inventory, setInventory] = useState<string[]>([]);
   const navigate = useNavigate();
+  
+  // Максимальный размер инвентаря
+  const MAX_INVENTORY_SIZE = 8;
   
   useEffect(() => {
     // Проверка авторизации
@@ -35,17 +39,33 @@ const GamePage = () => {
     if (savedProgress) {
       setHappyPeople(parseInt(savedProgress, 10));
     }
+    
+    // Загрузка инвентаря
+    const savedInventory = localStorage.getItem("gameInventory");
+    if (savedInventory) {
+      setInventory(JSON.parse(savedInventory));
+    }
   }, [navigate]);
 
   // Сохраняем прогресс при изменении счётчика счастливых людей
   useEffect(() => {
     localStorage.setItem("gameProgress", happyPeople.toString());
   }, [happyPeople]);
+  
+  // Сохраняем инвентарь при его изменении
+  useEffect(() => {
+    localStorage.setItem("gameInventory", JSON.stringify(inventory));
+  }, [inventory]);
 
   const handleDialogResponse = (success: boolean, response: string) => {
     if (success) {
       // Инкрементируем счётчик только при успешном ответе
       setHappyPeople(prev => prev + 1);
+      
+      // С вероятностью 20% даём предмет в инвентарь, если есть место
+      if (Math.random() < 0.2 && inventory.length < MAX_INVENTORY_SIZE) {
+        giveRandomItem();
+      }
       
       // Проверяем достижения
       if (happyPeople === 0) {
@@ -79,6 +99,28 @@ const GamePage = () => {
         generateNewNPC();
       }, 2000);
     }
+  };
+  
+  const giveRandomItem = () => {
+    const items = [
+      "Цветы", "Шоколадка", "Книга", "Игрушка", "Билет в кино", 
+      "Пицца", "Теплый шарф", "Зонтик", "Чашка чая", "Лекарство",
+      "Торт", "Гитара", "Наушники", "Конфеты", "Письмо"
+    ];
+    
+    const newItem = items[Math.floor(Math.random() * items.length)];
+    setInventory(prev => [...prev, newItem]);
+    
+    toast({
+      title: "Новый предмет получен!",
+      description: `Вы получили: ${newItem}`,
+      variant: "default",
+    });
+  };
+  
+  const handleUseItem = (itemIndex: number) => {
+    // Удаляем использованный предмет из инвентаря
+    setInventory(prev => prev.filter((_, index) => index !== itemIndex));
   };
   
   const generateNewNPC = () => {
@@ -197,6 +239,8 @@ const GamePage = () => {
                   <GameDialog 
                     npc={currentNPC}
                     onResponse={handleDialogResponse}
+                    inventoryItems={inventory}
+                    onUseItem={handleUseItem}
                   />
                 ) : (
                   <div className="flex flex-col items-center justify-center h-[400px] text-center space-y-4">
@@ -224,12 +268,39 @@ const GamePage = () => {
               </TabsContent>
               
               <TabsContent value="inventory">
-                <div className="grid grid-cols-4 gap-2">
-                  {Array(8).fill(0).map((_, i) => (
-                    <div key={i} className="aspect-square bg-muted/20 rounded-md flex items-center justify-center border border-purple-500/10 hover:border-purple-500/30 transition-colors">
-                      <span className="text-muted-foreground text-xs">Пусто</span>
-                    </div>
-                  ))}
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-medium">Ваш инвентарь</h3>
+                    <span className="text-sm text-muted-foreground">{inventory.length}/{MAX_INVENTORY_SIZE}</span>
+                  </div>
+                  
+                  <div className="grid grid-cols-4 gap-4">
+                    {inventory.length > 0 ? (
+                      inventory.map((item, index) => (
+                        <div 
+                          key={index} 
+                          className="aspect-square bg-purple-500/10 rounded-md flex flex-col items-center justify-center p-2 border border-purple-500/30 hover:border-purple-500/50 transition-colors cursor-pointer"
+                        >
+                          <div className="text-xl mb-1">🎁</div>
+                          <div className="text-xs text-center">{item}</div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="col-span-4 py-8 text-center text-muted-foreground">
+                        Ваш инвентарь пуст. Помогайте людям, чтобы получать полезные предметы!
+                      </div>
+                    )}
+                    
+                    {Array(Math.max(0, MAX_INVENTORY_SIZE - inventory.length)).fill(0).map((_, i) => (
+                      <div key={i} className="aspect-square bg-muted/20 rounded-md flex items-center justify-center border border-purple-500/10">
+                        <span className="text-muted-foreground text-xs">Пусто</span>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <div className="p-2 bg-muted/30 rounded-md text-sm text-muted-foreground">
+                    <p>Подсказка: В инвентаре хранятся предметы, которые вы можете использовать при общении с жителями города. Предметы могут мгновенно решить проблемы некоторых людей!</p>
+                  </div>
                 </div>
               </TabsContent>
             </Tabs>

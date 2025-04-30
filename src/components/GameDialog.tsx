@@ -15,14 +15,17 @@ interface NPC {
 interface GameDialogProps {
   npc: NPC;
   onResponse: (success: boolean, response: string) => void;
+  inventoryItems: string[];
+  onUseItem: (itemIndex: number) => void;
 }
 
-const GameDialog = ({ npc, onResponse }: GameDialogProps) => {
+const GameDialog = ({ npc, onResponse, inventoryItems = [], onUseItem }: GameDialogProps) => {
   const [userInput, setUserInput] = useState("");
-  const [conversation, setConversation] = useState<{ text: string; isPlayer: boolean; isError?: boolean }[]>([]);
+  const [conversation, setConversation] = useState<{ text: string; isPlayer: boolean; isError?: boolean; isItem?: boolean }[]>([]);
   const [thinking, setThinking] = useState(false);
   const [inputDisabled, setInputDisabled] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
+  const [showInventory, setShowInventory] = useState(false);
   
   // Обновляем диалог при смене NPC
   useEffect(() => {
@@ -84,7 +87,7 @@ const GameDialog = ({ npc, onResponse }: GameDialogProps) => {
           }
         ]);
         
-        setFeedbackMessage("Ваш ответ не помог. Попробуйте что-то другое.");
+        setFeedbackMessage("Ваш ответ не помог. Попробуйте что-то другое или используйте предмет из инвентаря.");
         
         // Уведомляем родительский компонент о неуспешном ответе
         onResponse(false, userInput);
@@ -95,6 +98,48 @@ const GameDialog = ({ npc, onResponse }: GameDialogProps) => {
       
       setThinking(false);
       setUserInput("");
+    }, 1500);
+  };
+
+  const handleUseItem = (itemIndex: number) => {
+    const item = inventoryItems[itemIndex];
+    
+    // Добавляем сообщение о использовании предмета
+    setConversation(prev => [...prev, { 
+      text: `Используется предмет: ${item}`, 
+      isPlayer: true,
+      isItem: true 
+    }]);
+    
+    // Имитация "размышления" NPC
+    setThinking(true);
+    setInputDisabled(true);
+    
+    setTimeout(() => {
+      const successResponses = [
+        `О, ${item}! Это именно то, что мне было нужно! Большое спасибо!`,
+        `Вау, ${item}! Ты как будто прочитал мои мысли! Спасибо огромное!`,
+        `Невероятно, ${item} решает мою проблему! Ты настоящий спаситель!`,
+        `${item}! Это просто потрясающе! Теперь я точно справлюсь со своей проблемой!`
+      ];
+      
+      setConversation(prev => [
+        ...prev, 
+        { text: successResponses[Math.floor(Math.random() * successResponses.length)], isPlayer: false }
+      ]);
+      
+      setFeedbackMessage("Предмет помог решить проблему человека! 🎁👍");
+      
+      // Уведомляем родительский компонент о использовании предмета
+      onUseItem(itemIndex);
+      
+      // Уведомляем родительский компонент о успешном ответе
+      onResponse(true, `Использовал предмет: ${item}`);
+      
+      // Полностью блокируем ввод для этого NPC
+      setInputDisabled(true);
+      setThinking(false);
+      setShowInventory(false);
     }, 1500);
   };
 
@@ -118,7 +163,9 @@ const GameDialog = ({ npc, onResponse }: GameDialogProps) => {
               key={i} 
               className={`p-2 rounded-lg max-w-[80%] transition-all animate-fade-in ${
                 message.isPlayer 
-                  ? "bg-game-purple/30 ml-auto" 
+                  ? message.isItem
+                    ? "bg-amber-500/30 border border-amber-500/50 ml-auto"
+                    : "bg-game-purple/30 ml-auto" 
                   : message.isError
                     ? "bg-red-500/20 border border-red-500/30 mr-auto"
                     : "bg-secondary/50 mr-auto"
@@ -140,34 +187,61 @@ const GameDialog = ({ npc, onResponse }: GameDialogProps) => {
       </Card>
       
       {feedbackMessage && (
-        <Alert className={`py-2 ${feedbackMessage.includes("успешно") ? "bg-green-500/10 border-green-500/30" : "bg-amber-500/10 border-amber-500/30"}`}>
-          <AlertCircle className={`h-4 w-4 ${feedbackMessage.includes("успешно") ? "text-green-500" : "text-amber-500"}`} />
+        <Alert className={`py-2 ${feedbackMessage.includes("успешно") || feedbackMessage.includes("помог") ? "bg-green-500/10 border-green-500/30" : "bg-amber-500/10 border-amber-500/30"}`}>
+          <AlertCircle className={`h-4 w-4 ${feedbackMessage.includes("успешно") || feedbackMessage.includes("помог") ? "text-green-500" : "text-amber-500"}`} />
           <AlertDescription className="text-sm">
             {feedbackMessage}
           </AlertDescription>
         </Alert>
       )}
       
+      {showInventory && inventoryItems.length > 0 && (
+        <div className="p-2 bg-muted/30 border border-purple-500/20 rounded-lg">
+          <h4 className="text-sm font-medium mb-2">Выберите предмет для использования:</h4>
+          <div className="grid grid-cols-4 gap-2">
+            {inventoryItems.map((item, index) => (
+              <Button 
+                key={index} 
+                variant="outline" 
+                className="h-auto py-1 bg-muted/50 hover:bg-game-purple/30 border border-purple-500/30 transition-colors"
+                onClick={() => handleUseItem(index)}
+                disabled={inputDisabled && feedbackMessage?.includes("помог")}
+              >
+                {item}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
+      
       <div className="flex space-x-2">
         <Input
           value={userInput}
           onChange={(e) => setUserInput(e.target.value)}
-          placeholder={inputDisabled && feedbackMessage?.includes("успешно") ? "Вы уже помогли этому человеку" : "Напишите, как вы хотите помочь..."}
+          placeholder={inputDisabled && (feedbackMessage?.includes("успешно") || feedbackMessage?.includes("помог")) ? "Вы уже помогли этому человеку" : "Напишите, как вы хотите помочь..."}
           onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-          disabled={thinking || (inputDisabled && feedbackMessage?.includes("успешно"))}
+          disabled={thinking || (inputDisabled && (feedbackMessage?.includes("успешно") || feedbackMessage?.includes("помог")))}
           className="bg-muted/30"
         />
         <Button 
           onClick={handleSendMessage} 
-          disabled={!userInput.trim() || thinking || (inputDisabled && feedbackMessage?.includes("успешно"))}
+          disabled={!userInput.trim() || thinking || (inputDisabled && (feedbackMessage?.includes("успешно") || feedbackMessage?.includes("помог")))}
           className="bg-game-purple hover:bg-game-purple-dark"
         >
           Отправить
         </Button>
+        <Button
+          variant="outline"
+          onClick={() => setShowInventory(!showInventory)}
+          disabled={(inputDisabled && (feedbackMessage?.includes("успешно") || feedbackMessage?.includes("помог"))) || inventoryItems.length === 0}
+          className="bg-muted/30 hover:bg-game-purple/30 border border-purple-500/30"
+        >
+          🎒
+        </Button>
       </div>
       
       <div className="text-xs text-muted-foreground">
-        <p>Подсказка: Предложите конкретную помощь в решении проблемы персонажа. Если не получилось с первого раза - попробуйте другой подход!</p>
+        <p>Подсказка: Предложите конкретную помощь в решении проблемы персонажа или используйте предметы из инвентаря!</p>
       </div>
     </div>
   );
