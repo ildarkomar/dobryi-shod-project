@@ -160,6 +160,44 @@ const GamePage = () => {
     localStorage.removeItem("gameUser");
     navigate("/");
   };
+  
+  // Обработчик админской команды из чата
+  const handleAdminCommand = (command: string, value: number) => {
+    if (command === "addHappyPeople") {
+      // Увеличиваем счётчик счастливых людей на указанное значение
+      let newCount = happyPeople + value;
+      
+      // Ограничиваем максимальное значение до 100
+      if (newCount > 100) newCount = 100;
+      
+      setHappyPeople(newCount);
+      
+      // Проверяем достижения
+      if (newCount >= 10 && happyPeople < 10) {
+        toast({
+          title: "Достижение разблокировано!",
+          description: "10 счастливых людей",
+          variant: "default",
+        });
+      }
+      
+      if (newCount >= 50 && happyPeople < 50) {
+        toast({
+          title: "Достижение разблокировано!",
+          description: "50 счастливых людей",
+          variant: "default",
+        });
+      }
+      
+      if (newCount >= 100 && happyPeople < 100) {
+        toast({
+          title: "Поздравляем!",
+          description: "Вы сделали счастливыми 100 человек и завершили игру!",
+          variant: "default",
+        });
+      }
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-accent/30 p-4 fade-in">
@@ -280,6 +318,14 @@ const GamePage = () => {
                         <div 
                           key={index} 
                           className="aspect-square bg-purple-500/10 rounded-md flex flex-col items-center justify-center p-2 border border-purple-500/30 hover:border-purple-500/50 transition-colors cursor-pointer"
+                          onClick={() => {
+                            // Показываем уведомление о необходимости использовать предмет в диалоге
+                            toast({
+                              title: "Предмет выбран",
+                              description: "Используйте этот предмет во время диалога с жителем города.",
+                              variant: "default",
+                            });
+                          }}
                         >
                           <div className="text-xl mb-1">🎁</div>
                           <div className="text-xs text-center">{item}</div>
@@ -312,6 +358,7 @@ const GamePage = () => {
             isOpen={chatOpen}
             onClose={() => setChatOpen(false)}
             username={localStorage.getItem("gameUser") || "Гость"}
+            onAdminCommand={handleAdminCommand}
           />
         )}
       </div>

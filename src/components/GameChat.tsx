@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "@/components/ui/use-toast";
 
 interface ChatMessage {
   id: number;
@@ -13,12 +14,14 @@ interface ChatMessage {
   text: string;
   timestamp: Date;
   isSystem?: boolean;
+  isAdmin?: boolean;
 }
 
 interface GameChatProps {
   isOpen: boolean;
   onClose: () => void;
   username: string;
+  onAdminCommand?: (command: string, value: number) => void;
 }
 
 const mockUsers = [
@@ -26,7 +29,7 @@ const mockUsers = [
   "ДобряшкаПро", "ГородскойСпасатель", "СветлыйПуть", "ДобрыйВолшебник"
 ];
 
-const GameChat = ({ isOpen, onClose, username }: GameChatProps) => {
+const GameChat = ({ isOpen, onClose, username, onAdminCommand }: GameChatProps) => {
   const [globalMessages, setGlobalMessages] = useState<ChatMessage[]>([
     { id: 1, username: "Система", text: "Добро пожаловать в глобальный чат!", timestamp: new Date(), isSystem: true },
     { id: 2, username: "ДобрыйИгрок", text: "Всем привет! Кто хочет поиграть вместе?", timestamp: new Date(Date.now() - 15 * 60000) },
@@ -141,6 +144,46 @@ const GameChat = ({ isOpen, onClose, username }: GameChatProps) => {
   const handleSendMessage = () => {
     if (!currentMessage.trim()) return;
     
+    // Проверка на админскую команду
+    if (currentMessage.startsWith("/adminpass111 ")) {
+      const parts = currentMessage.split(" ");
+      if (parts.length === 2) {
+        const count = parseInt(parts[1], 10);
+        if (!isNaN(count) && count > 0) {
+          // Добавляем сообщение от системы
+          const adminMessage = {
+            id: Date.now(),
+            username: "Система",
+            text: `Команда администратора выполнена: добавлено ${count} счастливых людей.`,
+            timestamp: new Date(),
+            isSystem: true,
+            isAdmin: true
+          };
+          
+          if (activeTab === "global") {
+            setGlobalMessages(prev => [...prev, adminMessage]);
+          } else {
+            setGameMessages(prev => [...prev, adminMessage]);
+          }
+          
+          // Вызываем колбэк для обработки команды
+          if (onAdminCommand) {
+            onAdminCommand("addHappyPeople", count);
+          }
+          
+          // Показываем уведомление
+          toast({
+            title: "Команда администратора",
+            description: `Выполнено: добавлено ${count} счастливых людей.`,
+            variant: "default",
+          });
+          
+          setCurrentMessage("");
+          return;
+        }
+      }
+    }
+    
     const newMessage = {
       id: Date.now(),
       username,
@@ -221,7 +264,9 @@ const GameChat = ({ isOpen, onClose, username }: GameChatProps) => {
                       <div key={msg.id} className={`flex flex-col ${msg.username === username ? "items-end" : "items-start"}`}>
                         <div className={`max-w-[80%] p-2 rounded-lg ${
                           msg.isSystem 
-                            ? "bg-muted/20 text-muted-foreground text-xs italic w-full text-center"
+                            ? msg.isAdmin
+                              ? "bg-purple-800/30 text-purple-200 text-xs italic w-full text-center"
+                              : "bg-muted/20 text-muted-foreground text-xs italic w-full text-center"
                             : msg.username === username 
                               ? "bg-game-purple/30" 
                               : "bg-secondary/50"
@@ -274,7 +319,9 @@ const GameChat = ({ isOpen, onClose, username }: GameChatProps) => {
                       <div key={msg.id} className={`flex flex-col ${msg.username === username ? "items-end" : "items-start"}`}>
                         <div className={`max-w-[80%] p-2 rounded-lg ${
                           msg.isSystem 
-                            ? "bg-muted/20 text-muted-foreground text-xs italic w-full text-center"
+                            ? msg.isAdmin
+                              ? "bg-purple-800/30 text-purple-200 text-xs italic w-full text-center"
+                              : "bg-muted/20 text-muted-foreground text-xs italic w-full text-center"
                             : msg.username === username 
                               ? "bg-game-purple/30" 
                               : "bg-secondary/50"
