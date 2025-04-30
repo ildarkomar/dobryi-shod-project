@@ -1,10 +1,19 @@
 
 import { useState, useEffect, useRef } from "react";
-import { X } from "lucide-react";
+import { X, Send, User, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
+
+interface ChatMessage {
+  id: number;
+  username: string;
+  text: string;
+  timestamp: Date;
+  isSystem?: boolean;
+}
 
 interface GameChatProps {
   isOpen: boolean;
@@ -12,178 +21,308 @@ interface GameChatProps {
   username: string;
 }
 
-type Message = {
-  text: string;
-  author: string;
-  timestamp: Date;
-};
+const mockUsers = [
+  "ДобрыйИгрок", "ГеройГорода", "ПомощникЛюдей", "ВеселыйШод", 
+  "ДобряшкаПро", "ГородскойСпасатель", "СветлыйПуть", "ДобрыйВолшебник"
+];
 
 const GameChat = ({ isOpen, onClose, username }: GameChatProps) => {
-  const [privateMessages, setPrivateMessages] = useState<Message[]>([]);
-  const [globalMessages, setGlobalMessages] = useState<Message[]>([
-    { text: "Добро пожаловать в глобальный чат!", author: "Система", timestamp: new Date() },
-    { text: "Ищу напарника для совместной игры", author: "Алексей", timestamp: new Date() },
-    { text: "Привет всем! Как играть?", author: "Новичок", timestamp: new Date() },
+  const [globalMessages, setGlobalMessages] = useState<ChatMessage[]>([
+    { id: 1, username: "Система", text: "Добро пожаловать в глобальный чат!", timestamp: new Date(), isSystem: true },
+    { id: 2, username: "ДобрыйИгрок", text: "Всем привет! Кто хочет поиграть вместе?", timestamp: new Date(Date.now() - 15 * 60000) },
+    { id: 3, username: "ГеройГорода", text: "Я уже сделал счастливыми 45 человек!", timestamp: new Date(Date.now() - 10 * 60000) },
+    { id: 4, username: "ПомощникЛюдей", text: "Как помочь бабушке, которая потеряла кошку?", timestamp: new Date(Date.now() - 5 * 60000) },
+    { id: 5, username: "ВеселыйШод", text: "Предложи ей расклеить объявления и помоги в поисках", timestamp: new Date(Date.now() - 4 * 60000) },
   ]);
-  const [inputMessage, setInputMessage] = useState("");
+  
+  const [gameMessages, setGameMessages] = useState<ChatMessage[]>([
+    { id: 1, username: "Система", text: "Это чат текущей игры. Здесь пока никого нет.", timestamp: new Date(), isSystem: true },
+  ]);
+  
+  const [currentMessage, setCurrentMessage] = useState("");
   const [activeTab, setActiveTab] = useState("global");
+  const [onlineUsers, setOnlineUsers] = useState<string[]>([...mockUsers]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
+  
+  // Эффект для имитации присоединения/выхода пользователей
   useEffect(() => {
-    // Прокрутка чата вниз при новых сообщениях
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [privateMessages, globalMessages]);
+    const interval = setInterval(() => {
+      // 20% шанс на событие
+      if (Math.random() > 0.8) {
+        const isJoining = Math.random() > 0.5;
+        
+        if (isJoining && onlineUsers.length < 15) {
+          // Добавление нового пользователя
+          const randomUser = mockUsers[Math.floor(Math.random() * mockUsers.length)];
+          if (!onlineUsers.includes(randomUser)) {
+            setOnlineUsers(prev => [...prev, randomUser]);
+            if (activeTab === "global") {
+              setGlobalMessages(prev => [
+                ...prev, 
+                { 
+                  id: Date.now(), 
+                  username: "Система", 
+                  text: `${randomUser} присоединился к чату`, 
+                  timestamp: new Date(),
+                  isSystem: true 
+                }
+              ]);
+            }
+          }
+        } else if (onlineUsers.length > 3) {
+          // Удаление случайного пользователя
+          const indexToRemove = Math.floor(Math.random() * onlineUsers.length);
+          const userToRemove = onlineUsers[indexToRemove];
+          setOnlineUsers(prev => prev.filter((_, i) => i !== indexToRemove));
+          
+          if (activeTab === "global") {
+            setGlobalMessages(prev => [
+              ...prev, 
+              { 
+                id: Date.now(), 
+                username: "Система", 
+                text: `${userToRemove} покинул чат`, 
+                timestamp: new Date(),
+                isSystem: true 
+              }
+            ]);
+          }
+        }
+      }
+    }, 10000); // Каждые 10 секунд
 
+    return () => clearInterval(interval);
+  }, [onlineUsers, activeTab]);
+  
+  // Эффект для имитации сообщений от других пользователей
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // 30% шанс на новое сообщение
+      if (Math.random() > 0.7 && onlineUsers.length > 0) {
+        const randomUser = onlineUsers[Math.floor(Math.random() * onlineUsers.length)];
+        const randomMessages = [
+          "Привет всем! Как дела?",
+          "Я только что помог парню найти работу!",
+          "Кто-нибудь знает, как получить достижение за 50 счастливых?",
+          "Люди в парке обычно просят простые вещи",
+          "В больнице самые сложные проблемы, но и наибольшая отдача",
+          "Попробуйте предлагать конкретную помощь, а не общие фразы",
+          "Я уже сделал счастливыми 32 человека!",
+          "Кто хочет создать приватное лобби для игры вместе?",
+          "Подскажите, как помочь человеку, который потерял деньги?",
+          "Лучше всего работает эмпатия и конкретные предложения"
+        ];
+        
+        const newMessage = {
+          id: Date.now(),
+          username: randomUser,
+          text: randomMessages[Math.floor(Math.random() * randomMessages.length)],
+          timestamp: new Date()
+        };
+        
+        if (activeTab === "global") {
+          setGlobalMessages(prev => [...prev, newMessage]);
+        }
+      }
+    }, 15000); // Каждые 15 секунд
+
+    return () => clearInterval(interval);
+  }, [onlineUsers, activeTab]);
+  
+  // Прокрутка чата вниз при новых сообщениях
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [globalMessages, gameMessages, activeTab]);
+  
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+  };
+  
   const handleSendMessage = () => {
-    if (!inputMessage.trim()) return;
+    if (!currentMessage.trim()) return;
     
     const newMessage = {
-      text: inputMessage,
-      author: username,
+      id: Date.now(),
+      username,
+      text: currentMessage,
       timestamp: new Date()
     };
     
     if (activeTab === "global") {
       setGlobalMessages(prev => [...prev, newMessage]);
     } else {
-      setPrivateMessages(prev => [...prev, newMessage]);
-      
-      // Имитация ответа от друга в приватном чате
-      setTimeout(() => {
-        const responses = [
-          "Хорошая идея!",
-          "Я согласен, давай сделаем так.",
-          "Не уверен, что это сработает...",
-          "Как твои успехи в игре?"
-        ];
-        
-        setPrivateMessages(prev => [
-          ...prev, 
-          { 
-            text: responses[Math.floor(Math.random() * responses.length)], 
-            author: "Друг", 
-            timestamp: new Date() 
-          }
-        ]);
-      }, 2000);
+      setGameMessages(prev => [...prev, newMessage]);
     }
     
-    setInputMessage("");
+    setCurrentMessage("");
   };
-
+  
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
-
+  
   if (!isOpen) return null;
-
+  
   return (
-    <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 fade-in">
-      <Card className="w-full max-w-2xl h-[70vh] overflow-hidden flex flex-col">
-        <div className="p-4 flex justify-between items-center border-b">
-          <h3 className="font-bold">Чат</h3>
-          <Button variant="ghost" size="icon" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+      <div className="bg-card w-full max-w-3xl rounded-lg shadow-lg border border-purple-500/30 overflow-hidden">
+        <div className="flex justify-between items-center p-3 border-b border-border">
+          <h2 className="font-semibold">Чат</h2>
+          <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
             <X className="h-4 w-4" />
           </Button>
         </div>
         
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-          <TabsList className="px-4 py-2">
-            <TabsTrigger value="global">Глобальный</TabsTrigger>
-            <TabsTrigger value="private">Личный</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="global" className="flex-1 flex flex-col p-0">
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {globalMessages.map((msg, idx) => (
-                <div 
-                  key={idx} 
-                  className={`p-2 rounded-lg max-w-[80%] ${
-                    msg.author === username 
-                      ? "bg-game-purple/30 ml-auto" 
-                      : "bg-secondary/50 mr-auto"
-                  }`}
-                >
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="font-bold text-xs">{msg.author}</span>
-                    <span className="text-xs text-muted-foreground">{formatTime(msg.timestamp)}</span>
-                  </div>
-                  <p className="text-sm">{msg.text}</p>
+        <div className="grid grid-cols-1 md:grid-cols-4 h-[500px]">
+          <div className="md:col-span-1 bg-muted/10 border-r border-border hidden md:block">
+            <div className="p-3 border-b border-border">
+              <h3 className="text-sm font-medium flex items-center">
+                <Users className="h-4 w-4 mr-2" />
+                Онлайн: {onlineUsers.length + 1}
+              </h3>
+            </div>
+            <ScrollArea className="h-[452px]">
+              <div className="p-2 space-y-1">
+                <div className="text-xs text-muted-foreground mb-2">Вы:</div>
+                <div className="flex items-center p-2 rounded bg-muted/20">
+                  <User className="h-4 w-4 mr-2 text-game-purple" />
+                  <span className="text-sm font-medium">{username}</span>
+                  <Badge variant="outline" className="ml-auto text-[10px] h-4 px-1">Вы</Badge>
                 </div>
-              ))}
-              <div ref={messagesEndRef} />
-            </div>
-            
-            <div className="p-4 border-t">
-              <div className="flex space-x-2">
-                <Input
-                  value={inputMessage}
-                  onChange={(e) => setInputMessage(e.target.value)}
-                  placeholder="Напишите сообщение..."
-                  onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-                  className="bg-muted/30"
-                />
-                <Button 
-                  onClick={handleSendMessage} 
-                  disabled={!inputMessage.trim()}
-                  className="bg-game-purple hover:bg-game-purple-dark"
-                >
-                  Отправить
-                </Button>
-              </div>
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="private" className="flex-1 flex flex-col p-0">
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {privateMessages.length === 0 ? (
-                <div className="text-center text-muted-foreground h-full flex items-center justify-center">
-                  <p>Начните переписку с другом</p>
-                </div>
-              ) : (
-                privateMessages.map((msg, idx) => (
-                  <div 
-                    key={idx} 
-                    className={`p-2 rounded-lg max-w-[80%] ${
-                      msg.author === username 
-                        ? "bg-game-purple/30 ml-auto" 
-                        : "bg-secondary/50 mr-auto"
-                    }`}
-                  >
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="font-bold text-xs">{msg.author}</span>
-                      <span className="text-xs text-muted-foreground">{formatTime(msg.timestamp)}</span>
-                    </div>
-                    <p className="text-sm">{msg.text}</p>
+                
+                <div className="text-xs text-muted-foreground mt-3 mb-2">Другие игроки:</div>
+                {onlineUsers.map((user, index) => (
+                  <div key={index} className="flex items-center p-2 rounded hover:bg-muted/20">
+                    <User className="h-4 w-4 mr-2 text-muted-foreground" />
+                    <span className="text-sm">{user}</span>
                   </div>
-                ))
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-            
-            <div className="p-4 border-t">
-              <div className="flex space-x-2">
-                <Input
-                  value={inputMessage}
-                  onChange={(e) => setInputMessage(e.target.value)}
-                  placeholder="Напишите сообщение другу..."
-                  onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-                  className="bg-muted/30"
-                />
-                <Button 
-                  onClick={handleSendMessage} 
-                  disabled={!inputMessage.trim()}
-                  className="bg-game-purple hover:bg-game-purple-dark"
-                >
-                  Отправить
-                </Button>
+                ))}
               </div>
-            </div>
-          </TabsContent>
-        </Tabs>
-      </Card>
+            </ScrollArea>
+          </div>
+          
+          <div className="md:col-span-3 flex flex-col">
+            <Tabs defaultValue="global" className="flex flex-col h-full" onValueChange={handleTabChange}>
+              <div className="border-b border-border">
+                <TabsList className="h-10 w-full justify-start bg-transparent">
+                  <TabsTrigger value="global" className="data-[state=active]:bg-muted/20">
+                    Глобальный
+                  </TabsTrigger>
+                  <TabsTrigger value="game" className="data-[state=active]:bg-muted/20">
+                    Игровой
+                  </TabsTrigger>
+                </TabsList>
+              </div>
+              
+              <TabsContent value="global" className="flex-1 flex flex-col p-0 m-0 h-[400px]">
+                <ScrollArea className="flex-1">
+                  <div className="p-3 space-y-2">
+                    {globalMessages.map((msg) => (
+                      <div key={msg.id} className={`flex flex-col ${msg.username === username ? "items-end" : "items-start"}`}>
+                        <div className={`max-w-[80%] p-2 rounded-lg ${
+                          msg.isSystem 
+                            ? "bg-muted/20 text-muted-foreground text-xs italic w-full text-center"
+                            : msg.username === username 
+                              ? "bg-game-purple/30" 
+                              : "bg-secondary/50"
+                        }`}>
+                          {!msg.isSystem && (
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="font-medium text-xs">
+                                {msg.username}
+                              </span>
+                              <span className="text-xs text-muted-foreground ml-2">
+                                {formatTime(msg.timestamp)}
+                              </span>
+                            </div>
+                          )}
+                          <div className={msg.isSystem ? "" : "text-sm"}>
+                            {msg.text}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    <div ref={messagesEndRef} />
+                  </div>
+                </ScrollArea>
+                
+                <div className="p-3 border-t border-border">
+                  <div className="flex space-x-2">
+                    <Input
+                      value={currentMessage}
+                      onChange={(e) => setCurrentMessage(e.target.value)}
+                      placeholder="Введите сообщение..."
+                      onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+                      className="bg-muted/20"
+                    />
+                    <Button 
+                      onClick={handleSendMessage} 
+                      disabled={!currentMessage.trim()}
+                      size="sm"
+                      className="bg-game-purple hover:bg-game-purple-dark px-3"
+                    >
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="game" className="flex-1 flex flex-col p-0 m-0 h-[400px]">
+                <ScrollArea className="flex-1">
+                  <div className="p-3 space-y-2">
+                    {gameMessages.map((msg) => (
+                      <div key={msg.id} className={`flex flex-col ${msg.username === username ? "items-end" : "items-start"}`}>
+                        <div className={`max-w-[80%] p-2 rounded-lg ${
+                          msg.isSystem 
+                            ? "bg-muted/20 text-muted-foreground text-xs italic w-full text-center"
+                            : msg.username === username 
+                              ? "bg-game-purple/30" 
+                              : "bg-secondary/50"
+                        }`}>
+                          {!msg.isSystem && (
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="font-medium text-xs">
+                                {msg.username}
+                              </span>
+                              <span className="text-xs text-muted-foreground ml-2">
+                                {formatTime(msg.timestamp)}
+                              </span>
+                            </div>
+                          )}
+                          <div className={msg.isSystem ? "" : "text-sm"}>
+                            {msg.text}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    <div ref={messagesEndRef} />
+                  </div>
+                </ScrollArea>
+                
+                <div className="p-3 border-t border-border">
+                  <div className="flex space-x-2">
+                    <Input
+                      value={currentMessage}
+                      onChange={(e) => setCurrentMessage(e.target.value)}
+                      placeholder="Введите сообщение..."
+                      onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+                      className="bg-muted/20"
+                    />
+                    <Button 
+                      onClick={handleSendMessage} 
+                      disabled={!currentMessage.trim()}
+                      size="sm"
+                      className="bg-game-purple hover:bg-game-purple-dark px-3"
+                    >
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </TabsContent>
+            </Tabs>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
